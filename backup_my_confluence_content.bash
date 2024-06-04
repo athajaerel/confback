@@ -48,6 +48,10 @@ do
 	[ ! -e "${PAGEF}" ] && curl -u ${CRED} https://cannonst.com${PAGE} ${CERTFLAGS} -o "${PAGEF}"
 	# relink css
 	sed -i -e '/link rel=.stylesheet.*css/s/\//_/g' "${PAGEF}"
+	# relink images
+	# this regex does not work --- images are more complicated to relink
+	#sed -i -e '/img/s/(".*?)\/(.*?")/\1_\2/g' "${PAGEF}"
+	#sed -i -e '/img/s/ src="\// src="..\/assets\/_/g' "${PAGEF}"
 done
 
 for CSS in ${CSSS}
