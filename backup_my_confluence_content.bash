@@ -54,8 +54,8 @@ do
 	[ ! -e "${CSSF}" ] && curl -u ${CRED} https://cannonst.com${PAGE} ${CERTFLAGS} -o "${CSSF}"
 done
 
+
 TARDIRS="${ASSETDIR} ${PAGEDIR}"
-
-# TODO: tar up everything in dated tarball, then delete all
-# Manually push to DISX
-
+TARBALL="$(date +%Y%m%d)_confluence_backup.tgz"
+[ ! -e "${TARBALL}" ] && tar cpzf "${TARBALL}" ${TARDIRS}
+# rm -rf ${TARDIRS}
