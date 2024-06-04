@@ -57,7 +57,7 @@ done
 for CSS in ${CSSS}
 do
 	CSSF=${PAGEDIR}/$(<<<"${CSS}" tr '/' '_')
-	[ ! -e "${CSSF}" ] && curl -u ${CRED} https://cannonst.com${PAGE} ${CERTFLAGS} -o "${CSSF}"
+	[ ! -e "${CSSF}" ] && curl -u ${CRED} https://cannonst.com${CSS} ${CERTFLAGS} -o "${CSSF}"
 done
 
 
