@@ -17,6 +17,7 @@ PAGES=$(grep "Page:</span> *<a href" content.html | cut -c 143- | cut -d\" -f1)
 PNGS=$(grep "\.png\?" content.html | grep -v system-content-items | cut -c 18- | cut -d\? -f1)
 JPGS=$(grep "\.jpg\?" content.html | grep -v system-content-items | cut -c 18- | cut -d\? -f1)
 PDFS=$(grep "\.pdf\?" content.html | cut -c 18- | cut -d\? -f1)
+CSSS=$(grep "stylesheet" content.html | cut -c 30- | cut -d\? -f1 | cut -d\" -f1)
 
 ASSETDIR="assets"
 PAGEDIR="pages"
@@ -45,6 +46,12 @@ for PAGE in ${PAGES}
 do
 	PAGEF=${PAGEDIR}/$(<<<"${PAGE}" tr '/' '_').html
 	[ ! -e "${PAGEF}" ] && curl -u ${CRED} https://cannonst.com${PAGE} ${CERTFLAGS} -o "${PAGEF}"
+done
+
+for CSS in ${CSSS}
+do
+	CSSF=${PAGEDIR}/$(<<<"${CSS}" tr '/' '_')
+	[ ! -e "${CSSF}" ] && curl -u ${CRED} https://cannonst.com${PAGE} ${CERTFLAGS} -o "${CSSF}"
 done
 
 TARDIRS="${ASSETDIR} ${PAGEDIR}"
