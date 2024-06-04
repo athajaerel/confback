@@ -46,6 +46,8 @@ for PAGE in ${PAGES}
 do
 	PAGEF=${PAGEDIR}/$(<<<"${PAGE}" tr '/' '_').html
 	[ ! -e "${PAGEF}" ] && curl -u ${CRED} https://cannonst.com${PAGE} ${CERTFLAGS} -o "${PAGEF}"
+	# relink css
+	sed -i -e '/link rel=.stylesheet.*css/s/\//_/g' "${PAGEF}"
 done
 
 for CSS in ${CSSS}
