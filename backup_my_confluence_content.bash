@@ -49,9 +49,7 @@ do
 	# relink css
 	sed -i -e '/link rel=.stylesheet.*css/s/\//_/g' "${PAGEF}"
 	# relink images
-	# this regex does not work --- images are more complicated to relink
-	#sed -i -e '/img/s/(".*?)\/(.*?")/\1_\2/g' "${PAGEF}"
-	#sed -i -e '/img/s/ src="\// src="..\/assets\/_/g' "${PAGEF}"
+	sed -i -e 's:/:_:g; s:<_:</:g; s:_>:/>:g; s:src=":src="../assets/:g' "${PAGEF}"
 done
 
 for CSS in ${CSSS}
