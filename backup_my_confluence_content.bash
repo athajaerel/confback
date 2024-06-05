@@ -41,6 +41,7 @@ do
 	[ ! -e "${PDFF}" ] && curl -u ${CRED} https://cannonst.com${PDF} ${CERTFLAGS} -o "${PDFF}"
 done
 
+# BUG: URLs don't always match file paths, there is a missing %25 ('%') wherever there is an entity. The URL isn't being HTML-encoded. Confluence bug? Workaround: add missing entity?
 install -d ./${PAGEDIR} -m0755
 for PAGE in ${PAGES}
 do
