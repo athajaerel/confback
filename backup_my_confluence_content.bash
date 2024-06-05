@@ -13,7 +13,12 @@ die() {
 CURLCMD="curl --no-progress-meter -u ${CRED} ${CERTFLAGS}"
 HEADERFILE="/dev/shm/headers_out"
 
-[ ! -e content.html ] && ${CURLCMD} https://cannonst.com/confluence/display/~adam.richardson/My+Content 2>/dev/null >content.html
+# You need a page called "My Content" in your space with that widget which gets
+# all your pages. Or anything you want, come to think of it. This script will
+# save all assets and pages linked by that page. But not comments. Who has time
+# for that?
+MY_URL="https://cannonst.com/confluence/display/~adam.richardson/My+Content"
+[ ! -e content.html ] && ${CURLCMD} "${MY_URL}" 2>/dev/null >content.html
 
 # Gliffies export as image. That'll do.
 PAGES=$(grep "Page:</span> *<a href" content.html | cut -c 143- | cut -d\" -f1)
@@ -48,7 +53,9 @@ do
 	[ ! -e "${PDFF}" ] && ${CURLCMD} https://cannonst.com${PDF} -o "${PDFF}"
 done
 
-# BUG: URLs don't always match file paths, there is a missing %25 ('%') wherever there is an entity. The URL isn't being HTML-encoded. Confluence bug? Workaround: add missing entity?
+# BUG: URLs don't always match file paths, there is a missing %25 ('%') wherever
+# there is an entity. The URL isn't being HTML-encoded. Confluence bug?
+# Workaround: add missing entity?
 install -d ./${PAGEDIR} -m0755
 install -d ./${PDFDIR} -m0755
 for PAGE in ${PAGES}
@@ -118,5 +125,6 @@ TARDIRS="${ASSETDIR} ${PAGEDIR} ${PDFDIR}"
 TARBALL="$(date +%Y%m%d)_confluence_backup.tgz"
 [ ! -e "${TARBALL}" ] && tar cpzf "${TARBALL}" ${TARDIRS}
 # rm -rf ${TARDIRS}
+# rm -f content.html
 
 echo "Done."
