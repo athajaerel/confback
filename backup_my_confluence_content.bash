@@ -10,6 +10,11 @@ die() {
 
 . ./conf
 
+# Required in conf file...
+# CRED="confuser:confpass"
+# CERTFLAGS="--cert ~me/user-certificates/me-cannonst.crt --key \
+# ~me/user-certificates/me-cannonst.key --cert-type pem"
+
 CURLCMD="curl --no-progress-meter -u ${CRED} ${CERTFLAGS}"
 HEADERFILE="/dev/shm/headers_out"
 
@@ -17,13 +22,19 @@ HEADERFILE="/dev/shm/headers_out"
 # all your pages. Or anything you want, come to think of it. This script will
 # save all assets and pages linked by that page. But not comments. Who has time
 # for that?
-MY_URL="https://cannonst.com/confluence/display/~adam.richardson/My+Content"
+MY_PAGE="My+Content"
+MY_USER=$(<<<${CRED} | cut -d: -f1)
+MY_URL="https://cannonst.com/confluence/display/~${MY_USER}/${MY_PAGE}"
 [ ! -e content.html ] && ${CURLCMD} "${MY_URL}" 2>/dev/null >content.html
 
+APIURL="https://cannonst.com/confluence/rest/api"
+PDFURL="https://cannonst.com/confluence/spaces/flyingpdf"
+
 # Gliffies export as image. That'll do.
+NOPE="system-content-items"
 PAGES=$(grep "Page:</span> *<a href" content.html | cut -c 143- | cut -d\" -f1)
-PNGS=$(grep "\.png\?" content.html | grep -v system-content-items | cut -c 18- | cut -d\? -f1)
-JPGS=$(grep "\.jpg\?" content.html | grep -v system-content-items | cut -c 18- | cut -d\? -f1)
+PNGS=$(grep "\.png\?" content.html | grep -v ${NOPE} | cut -c 18- | cut -d\? -f1)
+JPGS=$(grep "\.jpg\?" content.html | grep -v ${NOPE} | cut -c 18- | cut -d\? -f1)
 PDFS=$(grep "\.pdf\?" content.html | cut -c 18- | cut -d\? -f1)
 CSSS=$(grep "stylesheet" content.html | cut -c 30- | cut -d\? -f1 | cut -d\" -f1)
 
@@ -80,7 +91,7 @@ do
 		# looks like: /confluence/display/spaceKey/Title
 		SPACEKEY=$(<<<${PAGE} cut -d/ -f4)
 		TITLE=$(<<<${PAGE} cut -d/ -f5-)
-		JSONURL="https://cannonst.com/confluence/rest/api/content?title=${TITLE}&spaceKey=${SPACEKEY}&expand=history"
+		JSONURL="${APIURL}/content?title=${TITLE}&spaceKey=${SPACEKEY}&expand=history"
 		JSON=$(${CURLCMD} "${JSONURL}")
 		SIZE=$(<<<${JSON} jq .size)
 		if [ "x${SIZE}" != "x1" ] ; then
@@ -99,7 +110,7 @@ do
 	# sed because I stupidly have page titles with "..."
 	# which obviously filesystems do not like
 	PDFF=${PDFDIR}/$(<<<"${PAGE}" tr '/' '_' | sed -e 's/\.\.\./_/g').pdf
-	PDFURL="https://cannonst.com/confluence/spaces/flyingpdf/pdfpageexport.action?pageId=${PAGEID}"
+	PDFURL="${PDFURL}/pdfpageexport.action?pageId=${PAGEID}"
 	if [ ! -e "${PDFF}" ] ; then
 		${CURLCMD} "${PDFURL}" -D ${HEADERFILE}
 		grep -q "HTTP/1.1 302" ${HEADERFILE}
@@ -108,7 +119,8 @@ do
 			echo "No redirect --> no PDF."
 			continue
 		fi
-		LOC="https://cannonst.com$(grep "^Location:" ${HEADERFILE} | cut -c 11- | tr -d '\r\n\f')"
+		PLOC=$(grep "^Location:" ${HEADERFILE} | cut -c 11- | tr -d '\r\n\f')
+		LOC="https://cannonst.com${PLOC}"
 		${CURLCMD} "${LOC}" -o "${PDFF}"
 	fi
 done
