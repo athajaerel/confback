@@ -3,7 +3,7 @@ set -euo pipefail
 
 die() {
 	echo $1
-	exit
+	exit 1
 }
 
 [ ! -e ./conf ] && die "Config file not found."
