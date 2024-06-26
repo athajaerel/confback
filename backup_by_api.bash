@@ -6,6 +6,7 @@ set -euo pipefail
 . ./conf
 
 # only get stuff mod'd since this date
+# set to empty string to get everything ever
 MODIFIED_SINCE="2024-06-01"
 
 # Required in conf file...
@@ -19,8 +20,8 @@ MY_USER=$(<<<${CRED} cut -d: -f1)
 CURLCMD="curl --no-progress-meter -u ${CRED} ${CERTFLAGS}"
 TLSHOSTPREFIX="https://${HOSTPREFIX}"
 
-#PDFURL="${TLSHOSTPREFIX}/spaces/flyingpdf"
-#HEADERFILE="/dev/shm/confluence_pdf_download_headers"
+TLSDOMAIN="https://$(<<<$HOSTPREFIX cut -d/ -f1)"
+PDFURL="${TLSHOSTPREFIX}/spaces/flyingpdf"
 
 ASSETURL="${TLSHOSTPREFIX}/download/attachments"
 APIURL="${TLSHOSTPREFIX}/rest/api"
@@ -28,7 +29,9 @@ APIURL="${TLSHOSTPREFIX}/rest/api"
 CQL_QUERY="contributor=${MY_USER}"
 CQL_QUERY+="+and+type+in+(page,attachment)"
 CQL_QUERY+="+and+type+not+in+(comment)"
-CQL_QUERY+="+and+lastmodified+%3E+${MODIFIED_SINCE}"
+if [ "z${MODIFIED_SINCE}" != "z" ]; then
+	CQL_QUERY+="+and+lastmodified+%3E+${MODIFIED_SINCE}"
+fi
 
 EXTRA_TERMS="&includeArchivedSpaces=true"
 SEARCHURL="${APIURL}/content/search?cql=${CQL_QUERY}${EXTRA_TERMS}"
@@ -37,6 +40,8 @@ P1=$(curl --no-progress-meter -u ${CRED} ${CERTFLAGS} "${SEARCHURL}")
 
 TOTAL_SIZE=$(<<<"${P1}" jq .totalSize)
 PAGE_LIMIT=$(<<<"${P1}" jq .limit)
+
+DATA_DIRS="assets pages pdfs"
 
 # Exit script with error message
 # $1: error message
@@ -56,15 +61,16 @@ get_if() {
 		OUTPATH="assets/$2"
 		GETURL="$3"
 		<<<"${GETURL}" grep -q "preview="
-		[ $? -eq 0 ] && (
+		[ $? -eq 0 ] && GETURL=$(
 			VAL=$(<<<${GETURL} awk -F[\?=] '{print $3}' \
 				| sed -e 's:%2F:/:g')
-			GETURL="${ASSETURL}/${VAL}"
+			GETURL="${ASSETURL}${VAL}"
+			echo $GETURL
 		)
 	else
 		OUTPATH="pages/$2.html"
 		GETURL="${TLSHOSTPREFIX}$3"
-		echo $GETURL
+		#echo $GETURL
 	fi
 	if [ -e "${OUTPATH}" ]; then
 		echo "Skipping because already got: ${OUTPATH}"
@@ -85,7 +91,7 @@ fix_css() {
 	# find very long CSS URL, download it
 	# but make a small hash of the URL so Windows won't complain
 	# replace link in HTML
-	x=1
+	echo "Fixing CSS in $1..."
 }
 
 # Fix image links in HTML file
@@ -94,10 +100,50 @@ fix_images() {
 	# TODO: relink images if needed
 	# image URLs aren't so long so no hashing needed
 	# adjust link in HTML
-	x=1
+	echo "Fixing images in $1..."
 }
 
-install -d assets pages pdfs
+# Get the PDF version
+# $1: page id
+# $2: title
+get_pdf() {
+	echo "Getting PDF version of $2, page id $1..."
+	OUTPATH="pdfs/$2.pdf"
+	if [ ! -e "${OUTPATH}" ]; then
+		PHDR="${PDFURL}/pdfpageexport.action?pageId=$1"
+		echo "Getting redirect header..."
+		HEADERS=$(${CURLCMD} --head "${PHDR}")
+		<<<"${HEADERS}" grep -q "HTTP/1.1 302"
+		if [ $? -ne 0 ]; then
+			echo "No redirect => no PDF."
+			return
+		fi
+		LOC=$(<<<"${HEADERS}" awk '/^Location:/ {print $2}')
+		LOC=$(<<<"${LOC}" tr -d '\r\n')
+		LOC=${TLSDOMAIN}${LOC}
+		echo "Downloading..."
+		${CURLCMD} -o "${OUTPATH}" ${LOC}
+	else
+		echo "Already got."
+	fi
+}
+
+# Download and fix if necessary
+# $1: individual search result JSON
+get_result() {
+	TYPE=$(<<<"$1" jq -r .type)
+	TITLE=$(<<<"$1" jq -r .title)
+	LINK=$(<<<"$1" jq -r ._links.webui)
+	get_if  "${TYPE}" "${TITLE}" "${LINK}"
+	if [ "z${TYPE}" == "zpage" ]; then
+		fix_css "pages/${TITLE}.html"
+		fix_images "pages/${TITLE}.html"
+		get_pdf "$(<<<$1 jq -r .id)" "${TITLE}"
+	fi
+	sleep 1
+}
+
+install -d ${DATA_DIRS}
 
 REMAINING=${TOTAL_SIZE}
 
@@ -109,21 +155,13 @@ while [ ${REMAINING} -gt 0 ] ; do
 	# Start of loop ^^
 
 	for N in {0..24}; do
-		echo "Getting result #$(( ${START}+${N}+1 ))..."
-		RESULT=$(<<<${PAGE} jq .results[${N}])
-		if [ "z${RESULT}" == "znull" ]; then
+		R=$(<<<${PAGE} jq .results[${N}])
+		if [ "z${R}" == "znull" ]; then
 			echo "End of result set."
 			break
 		fi
-		TYPE=$(<<<"${RESULT}" jq -r .type)
-		TITLE=$(<<<"${RESULT}" jq -r .title)
-		LINK=$(<<<"${RESULT}" jq -r ._links.webui)
-		get_if  "${TYPE}" "${TITLE}" "${LINK}"
-		if [ "z${TYPE}" == "zpage" ]; then
-			fix_css "pages/${TITLE}.html"
-			fix_images "pages/${TITLE}.html"
-		fi
-		sleep 1
+		echo "Getting result #$(( ${START}+${N}+1 ))..."
+		get_result "${R}"
 	done
 
 	# End of loop vv
@@ -131,12 +169,11 @@ while [ ${REMAINING} -gt 0 ] ; do
 done
 
 echo "Making tarball..."
-TARDIRS="assets pages pdfs"
 TARBALL="$(date +%Y%m%d)_confluence_backup.tgz"
-[ ! -e "${TARBALL}" ] && tar cpzf "${TARBALL}" ${TARDIRS}
+[ ! -e "${TARBALL}" ] && tar cpzf "${TARBALL}" ${DATA_DIRS}
 
 echo "Making zipfile..."
 ZIPFILE="$(date +%Y%m%d)_confluence_backup.zip"
-[ ! -e "${ZIPFILE}" ] && zip -T -r "${ZIPFILE}" ${TARDIRS}
+[ ! -e "${ZIPFILE}" ] && zip -T -r "${ZIPFILE}" ${DATA_DIRS}
 
-rm -r assets pages pdfs
+#rm -r ${DATA_DIRS}
