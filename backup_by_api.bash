@@ -42,8 +42,6 @@ P1=$(curl --no-progress-meter -u ${CRED} ${CERTFLAGS} "${SEARCHURL}")
 TOTAL_SIZE=$(<<<"${P1}" jq .totalSize)
 PAGE_LIMIT=$(<<<"${P1}" jq .limit)
 
-DATA_DIRS="assets pages pdfs"
-
 # Exit script with error message
 # $1: error message
 die() {
@@ -209,13 +207,3 @@ while [ ${REMAINING} -gt 0 ] ; do
 	# End of loop vv
 	REMAINING=$(( ${REMAINING} - ${PAGE_LIMIT} ))
 done
-
-echo "Making tarball..."
-TARBALL="$(date +%Y%m%d)_confluence_backup.tgz"
-[ ! -e "${TARBALL}" ] && tar cpzf "${TARBALL}" ${DATA_DIRS}
-
-echo "Making zipfile..."
-ZIPFILE="$(date +%Y%m%d)_confluence_backup.zip"
-[ ! -e "${ZIPFILE}" ] && zip -T -r "${ZIPFILE}" ${DATA_DIRS}
-
-#rm -r ${DATA_DIRS}
