@@ -1,0 +1,3 @@
+CRED="myuser:mypassword"
+CERTFLAGS="--cert /home/myuser/user-certificates/myuser.crt --key /home/myuser/user-certificates/myuser.key --cert-type pem"
+HOSTPREFIX="mydomain.com/blargh"
